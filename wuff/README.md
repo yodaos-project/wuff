@@ -6,12 +6,17 @@
 
 A lightweight, pure-Rust decoder for [WOFF](https://www.w3.org/TR/WOFF/) and [WOFF2](https://www.w3.org/TR/WOFF2/) web fonts.
 
+This YodaOS fork adds Ink's WOFF2 memory limits. The crates.io and docs.rs
+badges above refer to the upstream published crate, not this fork.
+
 Wuff takes a compressed WOFF or WOFF2 file and decodes it back into a plain
 [OpenType/TrueType (sfnt)](https://learn.microsoft.com/en-us/typography/opentype/spec/otff)
 font that can be parsed by standard font tooling.
 
-It is hand-ported from Google's [woff2](https://github.com/google/woff2) C++ library and has been verified to produce
-byte-identical output to Google's woff2 library for every font in the [google/fonts](https://github.com/google/fonts) repository.
+Upstream is hand-ported from Google's [woff2](https://github.com/google/woff2)
+C++ library and reports byte-identical results for the fonts in
+[google/fonts](https://github.com/google/fonts). This fork's stricter limits can
+reject fonts accepted by upstream.
 
 ## Why Wuff?
 
@@ -39,9 +44,11 @@ let otf_bytes = wuff::decompress_woff2(&woff2_bytes)?;
 
 This fork limits WOFF2 input, decompressed streams, and reconstructed font
 data to 16 MiB. Use `decompress_woff2_with_limit(&woff2_bytes, limit)` with a
-built-in Brotli backend to impose a lower limit. These limits do not bound all
-temporary allocations or total process memory. See `INK-CHANGES.md` in the
-repository for the other limits applied by this fork.
+built-in Brotli backend to impose a lower decoded-data limit. WOFF2 files are
+also limited to 256 tables and collections to 128 faces. These limits do not
+bound all temporary allocations or total process memory. See the
+[fork README](https://github.com/yodaos-project/wuff#woff2-limits-in-this-fork)
+for compatibility and custom-decompressor details.
 
 Decode a WOFF (version 1) file:
 

@@ -6,12 +6,19 @@
 
 A lightweight, pure-Rust decoder for [WOFF](https://www.w3.org/TR/WOFF/) and [WOFF2](https://www.w3.org/TR/WOFF2/) web fonts.
 
+This is the YodaOS fork of [nicoburns/wuff](https://github.com/nicoburns/wuff).
+It adds stricter WOFF2 memory limits for Ink; see
+[WOFF2 limits in this fork](#woff2-limits-in-this-fork). The crates.io and
+docs.rs badges above refer to the upstream published crate, not this fork.
+
 Wuff takes a compressed WOFF or WOFF2 file and decodes it back into a plain
 [OpenType/TrueType (sfnt)](https://learn.microsoft.com/en-us/typography/opentype/spec/otff)
 font that can be parsed by standard font tooling.
 
-It is hand-ported from Google's [woff2](https://github.com/google/woff2) C++ library and has been verified to produce
-byte-identical output to Google's woff2 library for every font in the [google/fonts](https://github.com/google/fonts) repository
+Upstream is hand-ported from Google's [woff2](https://github.com/google/woff2)
+C++ library and reports byte-identical results for the fonts in
+[google/fonts](https://github.com/google/fonts). This fork's stricter limits can
+reject fonts accepted by upstream.
 
 ## Why Wuff?
 
@@ -60,6 +67,48 @@ let otf_bytes = decompress_woff2_with_custom_brotli(&woff2_bytes, &mut |input, h
 ```
 
 A matching `decompress_woff1_with_custom_z` is available for WOFF1.
+
+### WOFF2 limits in this fork
+
+Ink processes fonts on memory-constrained devices. Compared with upstream
+wuff 0.2.9, this fork:
+
+- Limits compressed WOFF2 input, the decompressed table stream, and the
+  reconstructed font to 16 MiB each, instead of upstream's 128 MiB limit on
+  decompressed and reconstructed data.
+- Rejects WOFF2 files with more than 256 tables, collections with more than
+  128 faces, and collection entries with more than 256 table references.
+- Checks the caller's remaining budget while reconstructing tables, including
+  `glyf` and `loca`, rather than relying only on the font's declared size or
+  checking the result after reconstruction.
+- Adds `decompress_woff2_with_limit` for callers that need a lower per-call
+  limit. The limit is capped at 16 MiB. It applies to the decompressed stream
+  and reconstructed font; the compressed input still has the 16 MiB cap.
+
+With the `brotli` or `brotli-c` feature enabled:
+
+```rust
+let woff2_bytes = std::fs::read("font.woff2")?;
+let remaining_budget = 8 * 1024 * 1024;
+let otf_bytes = wuff::decompress_woff2_with_limit(&woff2_bytes, remaining_budget)?;
+```
+
+The existing `decompress_woff2` and `decompress_woff2_with_custom_brotli`
+entry points also use the 16 MiB limit. The custom Brotli callback is
+responsible for limiting its own allocations. These checks do not cap every
+temporary allocation or guarantee a 16 MiB total process-memory peak. They
+apply to WOFF2; they do not introduce a new WOFF1 budget. Ink separately
+manages its application font-registry budget.
+
+To depend on this fork from Cargo, pin a reviewed Git commit, for example:
+
+```toml
+wuff = { git = "https://github.com/yodaos-project/wuff.git", rev = "779357934149ccd8ffa4a4eb01da0592f342dfba", default-features = false, features = ["brotli"] }
+```
+
+Inputs exceeding these limits return an error, including otherwise valid large
+fonts. See [INK-CHANGES.md](./INK-CHANGES.md) and run the regression tests with
+`cargo test -p wuff --test limits`.
 
 ## Conformance testing
 
